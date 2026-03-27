@@ -256,13 +256,97 @@ async function lookupWord(word) {
       if (request.result) {
         resolve(request.result);
       } else {
-        resolve({ word, origin: 'not found', error: true });
+        // Try to find base form
+        tryBaseForm(normalizedWord, store, resolve, word);
       }
     };
     
     request.onerror = (e) => {
-      console.error('DB lookup error:', e);
       resolve({ word, origin: 'lookup error', error: true });
     };
   });
+}
+
+function tryBaseForm(word, store, resolve, originalWord) {
+  const attempts = [];
+  
+  // Past tense/participle: walked -> walk, expelled -> expel
+  if (word.endsWith('ed')) {
+    attempts.push(word.slice(0, -1));      // disgraced -> disgrace
+    attempts.push(word.slice(0, -2));      // helped -> help
+    
+    // Handle doubled consonants: expelled -> expel, stopped -> stop
+    if (word.length > 3) {
+      const lastTwo = word.slice(-4, -2);
+      if (lastTwo[0] === lastTwo[1]) {  // Double letter before 'ed'
+        attempts.push(word.slice(0, -3)); // expelled -> expel
+      }
+    }
+    
+    if (word.endsWith('ied')) {
+      attempts.push(word.slice(0, -3) + 'y'); // studied -> study
+    }
+  }
+  
+  // Present participle: walking -> walk, expelling -> expel
+  if (word.endsWith('ing')) {
+    attempts.push(word.slice(0, -3));      // helping -> help
+    
+    // Handle doubled consonants: expelling -> expel
+    if (word.length > 4) {
+      const lastTwo = word.slice(-5, -3);
+      if (lastTwo[0] === lastTwo[1]) {
+        attempts.push(word.slice(0, -4)); // expelling -> expel
+      }
+    }
+    
+    if (word.endsWith('ying')) {
+      attempts.push(word.slice(0, -4) + 'y'); // studying -> study
+    }
+  }
+  
+  // Rest stays the same...
+  if (word.endsWith('s')) {
+    attempts.push(word.slice(0, -1));
+    if (word.endsWith('es')) {
+      attempts.push(word.slice(0, -2));
+    }
+    if (word.endsWith('ies')) {
+      attempts.push(word.slice(0, -3) + 'y');
+    }
+  }
+  
+  if (word.endsWith('er') || word.endsWith('est')) {
+    const base = word.endsWith('est') ? word.slice(0, -3) : word.slice(0, -2);
+    attempts.push(base);
+    attempts.push(base.slice(0, -1));
+  }
+  
+  // Try each potential base form
+  tryNextAttempt(0);
+  
+  function tryNextAttempt(index) {
+    if (index >= attempts.length) {
+      resolve({ word: originalWord, origin: 'not found', error: true });
+      return;
+    }
+    
+    const baseForm = attempts[index];
+    const req = store.get(baseForm);
+    
+    req.onsuccess = () => {
+      if (req.result) {
+        const result = { ...req.result };
+        result.word = originalWord;
+        result.base_form = baseForm;
+        resolve(result);
+      } else {
+        tryNextAttempt(index + 1);
+      }
+    };
+    
+    req.onerror = () => {
+      tryNextAttempt(index + 1);
+    };
+  }
 }

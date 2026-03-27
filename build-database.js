@@ -29,13 +29,23 @@ const langToOrigin = {
   'Persian': { origin: 'persian', priority: 8 },
 };
 
+const validRelTypes = [
+  'etymologically_related',
+  'borrowed_from',
+  'derived',
+  'compound_of',
+  'inherited_from',
+  'has_derived_form'
+];
+
 function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 for (let i = 1; i < lines.length; i++) {
   const line = lines[i].trim();
-  if (!line) continue;
+  if (!line)
+    continue;
   
   const parts = line.split(',');
   if (parts.length < 6) continue;
@@ -44,14 +54,18 @@ for (let i = 1; i < lines.length; i++) {
   
   if (lang !== 'English') continue;
   
-  if (!relType.includes('etymologically_related') && 
-      !relType.includes('borrowed_from') && 
-      !relType.includes('derived')) continue;
-  
-  if (!relatedLang || relatedLang.trim() === '') continue;
+  const hasValidRelType = validRelTypes.some(type => relType.includes(type));
+
+  if (!hasValidRelType)
+     continue;
+
+  if (!relatedLang || relatedLang.trim() === '')
+     continue;
   
   const word = term.toLowerCase().trim();
-  if (!/^[a-z]+$/.test(word)) continue;
+
+  if (!/^[a-z]+$/.test(word))
+     continue;
   
   const originInfo = langToOrigin[relatedLang];
   const origin = originInfo ? originInfo.origin : 'other';

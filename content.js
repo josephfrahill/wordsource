@@ -42,9 +42,15 @@ function showTooltip(wordData, x, y) {
   const tooltip = document.createElement('div');
   tooltip.id = 'etymology-tooltip';
   
-  let html = `<strong>${wordData.word}</strong>: ${wordData.origin}`;
+  let html = `<strong>${wordData.word}</strong>`;
   
-  // Show "from [language] [source_word]"
+  // Show base form if it's an inflection
+  if (wordData.base_form && wordData.base_form !== wordData.word) {
+    html += ` (← ${wordData.base_form})`;
+  }
+  
+  html += `: ${wordData.origin}`;
+  
   if (wordData.source_lang) {
     html += `<br><small>from ${wordData.source_lang}`;
     if (wordData.source_word && wordData.source_word.trim() !== '') {

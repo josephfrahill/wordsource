@@ -270,6 +270,16 @@ async function lookupWord(word) {
 function tryBaseForm(word, store, resolve, originalWord) {
   const attempts = [];
   
+  // Generate all possible base forms by removing suffixes
+  
+  // First, try single suffix removal
+  
+  // Adverbs: irregularly -> irregular, quickly -> quick
+  if (word.endsWith('ly')) {
+    attempts.push(word.slice(0, -2));       // quickly -> quick
+    attempts.push(word.slice(0, -2) + 'le'); // gently -> gentle
+  }
+  
   // Past tense/participle: walked -> walk, expelled -> expel
   if (word.endsWith('ed')) {
     attempts.push(word.slice(0, -1));      // disgraced -> disgrace
@@ -278,7 +288,7 @@ function tryBaseForm(word, store, resolve, originalWord) {
     // Handle doubled consonants: expelled -> expel, stopped -> stop
     if (word.length > 3) {
       const lastTwo = word.slice(-4, -2);
-      if (lastTwo[0] === lastTwo[1]) {  // Double letter before 'ed'
+      if (lastTwo[0] === lastTwo[1]) {
         attempts.push(word.slice(0, -3)); // expelled -> expel
       }
     }
@@ -305,21 +315,67 @@ function tryBaseForm(word, store, resolve, originalWord) {
     }
   }
   
-  // Rest stays the same...
-  if (word.endsWith('s')) {
-    attempts.push(word.slice(0, -1));
-    if (word.endsWith('es')) {
-      attempts.push(word.slice(0, -2));
+  // Plurals/third person: reviewers -> reviewer, dogs -> dog
+  if (word.endsWith('s') && !word.endsWith('ss')) {  // Don't strip 'glass' -> 'glas'
+    const withoutS = word.slice(0, -1);
+    attempts.push(withoutS);               // reviewers -> reviewer
+    
+    // Now try removing -er/-or from that: reviewer -> review
+    if (withoutS.endsWith('er')) {
+      attempts.push(withoutS.slice(0, -2)); // reviewer -> review
     }
+    if (withoutS.endsWith('or')) {
+      attempts.push(withoutS.slice(0, -2)); // actor -> act
+    }
+    
+    if (word.endsWith('es')) {
+      attempts.push(word.slice(0, -2));    // churches -> church
+    }
+    
     if (word.endsWith('ies')) {
-      attempts.push(word.slice(0, -3) + 'y');
+      attempts.push(word.slice(0, -3) + 'y'); // babies -> baby
     }
   }
   
-  if (word.endsWith('er') || word.endsWith('est')) {
-    const base = word.endsWith('est') ? word.slice(0, -3) : word.slice(0, -2);
-    attempts.push(base);
-    attempts.push(base.slice(0, -1));
+  // Agent nouns: reviewer -> review, actor -> act
+  if (word.endsWith('er') && !word.endsWith('eer')) {  // Don't strip 'peer' -> 'p'
+    attempts.push(word.slice(0, -2));      // reviewer -> review
+    // Handle doubling: runner -> run
+    if (word.length > 3) {
+      const lastTwo = word.slice(-4, -2);
+      if (lastTwo[0] === lastTwo[1]) {
+        attempts.push(word.slice(0, -3)); // runner -> run
+      }
+    }
+  }
+  
+  if (word.endsWith('or')) {
+    attempts.push(word.slice(0, -2));      // actor -> act
+  }
+  
+  // Comparative/superlative: bigger -> big, biggest -> big
+  if (word.endsWith('est')) {
+    attempts.push(word.slice(0, -3));
+    // Handle doubling: biggest -> big
+    if (word.length > 4) {
+      const lastTwo = word.slice(-5, -3);
+      if (lastTwo[0] === lastTwo[1]) {
+        attempts.push(word.slice(0, -4));
+      }
+    }
+  } else if (word.endsWith('er')) {
+    // Only if not already handled above
+    const base = word.slice(0, -2);
+    if (!attempts.includes(base)) {
+      attempts.push(base);
+      // Handle doubling
+      if (word.length > 3) {
+        const lastTwo = word.slice(-4, -2);
+        if (lastTwo[0] === lastTwo[1]) {
+          attempts.push(word.slice(0, -3));
+        }
+      }
+    }
   }
   
   // Try each potential base form

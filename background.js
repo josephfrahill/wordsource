@@ -350,3 +350,13 @@ function tryBaseForm(word, store, resolve, originalWord) {
     };
   }
 }
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "lookup-word") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      chrome.tabs.sendMessage(tabs[0].id, {
+        action: "lookupSelection"
+      });
+    });
+  }
+});

@@ -3,14 +3,14 @@
   "name": "Etymology Checker",
   "version": "1.0",
   "description": "Check if words are Germanic or Latinate",
-  "permissions": ["storage", "contextMenus", "activeTab", "clipboardRead", "clipboardWrite"],
+  "permissions": ["clipboardRead"],
   "background": {
     "service_worker": "background.js"
   },
   "commands": {
     "lookup-word": {
       "suggested_key": {
-        "default": "Alt+X"
+        "default": "Ctrl+Q"
       },
       "description": "Lookup selected word"
     }

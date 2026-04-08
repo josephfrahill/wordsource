@@ -228,6 +228,10 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+function removeDiacritics(str) {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 initDB();
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -246,7 +250,7 @@ async function lookupWord(word) {
       return;
     }
     
-    const normalizedWord = word.toLowerCase().trim();
+     const normalizedWord = removeDiacritics(word.toLowerCase().trim());
     
     const tx = db.transaction('words', 'readonly');
     const store = tx.objectStore('words');
@@ -269,6 +273,40 @@ async function lookupWord(word) {
 
 function tryBaseForm(word, store, resolve, originalWord) {
   const attempts = [];
+  
+  // Contractions: I'm -> I, it's -> it, isn't -> is not
+  if (word.includes("'")) {
+    const contractionMap = {
+      "i'm": "i",
+      "it's": "it",
+      "isn't": "is",
+      "aren't": "are",
+      "wasn't": "was",
+      "weren't": "were",
+      "haven't": "have",
+      "hasn't": "has",
+      "hadn't": "had",
+      "won't": "will",
+      "wouldn't": "would",
+      "shouldn't": "should",
+      "couldn't": "could",
+      "you're": "you",
+      "we're": "we",
+      "they're": "they",
+      "don't": "do",
+      "doesn't": "does",
+      "didn't": "did",
+      "can't": "can"
+    };
+    
+    const base = contractionMap[word];
+    if (base) {
+      attempts.push(base);
+    } else {
+      // Generic: strip everything after apostrophe
+      attempts.push(word.split("'")[0]);
+    }
+  }
   
   // Generate all possible base forms by removing suffixes
   

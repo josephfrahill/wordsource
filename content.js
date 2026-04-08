@@ -46,7 +46,10 @@ async function handleManualLookup() {
 // -----------------------------
 function lookupAndShow(word, x, y) {
   safeSendMessage({ action: 'lookup', word }, (response) => {
-    if (!response) return;
+
+    if (!response)
+       return;
+
     showTooltip(response, x, y);
   });
 }
@@ -55,11 +58,16 @@ function lookupAndShowWithFeedback(word, position = { mode: 'cursor', x: 0, y: 0
   safeSendMessage({ action: 'lookup', word }, (response) => {
     let data;
 
-    if (!response || response.error) {
-      data = { word, origin: 'Unknown' };
-    } else {
-      data = response;
+    
+    if (!response) {
+      data = {word, origin: response.error };//{ word, origin: 'Unknown' };
     }
+    else if (response.error) {
+      data = {word, origin: 'not found' };
+    }
+    else {
+      data = response;
+    }    
 
     if (position.mode === 'fixed') {
       showTooltipFixed(data);
@@ -115,10 +123,17 @@ function showTooltip(wordData, x, y) {
 
   tooltip.style.cssText += `
     position: absolute;
-    left: ${x}px;
-    top: ${y}px;
+    left: ${x + 5}px;
+    top: ${y + 10}px;
     pointer-events: none;
   `;
+
+  /*
+  requestAnimationFrame(() => {
+    tooltip.style.opacity = '1';
+    tooltip.style.transform = 'translateY(0)';
+  });
+  */
 
   document.body.appendChild(tooltip);
 
@@ -159,10 +174,10 @@ function showTooltipFixed(wordData) {
 function buildTooltip(wordData) {
   const colors = {
     Germanic: '#4A90E2',
-    Latinate: '#E24A4A',
+    Latinate: '#9B59B6',
     Greek: '#4AE290',
     Arabic: '#E2C44A',
-    Other: '#9B59B6',
+    Other: '#E24A4A',
     Unknown: '#666'
   };
 

@@ -277,8 +277,26 @@ function tryBaseForm(word, store, resolve, originalWord) {
   // Contractions: I'm -> I, it's -> it, isn't -> is not
   if (word.includes("'")) {
     const contractionMap = {
-      "i'm": "i",
-      "it's": "it",
+      "i'm": "i",      
+      "i've": "i",
+      "i'd": "i",
+      "i'll": "i",
+      "you're": "you",
+      "you've": "you",
+      "you'd": "you",
+      "you'll": "you",
+      "it's": "it",  
+      "it've": "it",
+      "it'd": "it",
+      "it'll": "it",
+      "we're": "we",
+      "we've": "we",
+      "we'd": "we",
+      "we'll": "we",
+      "they're": "they",
+      "they've": "they",
+      "they'd": "they",
+      "they'll": "they",
       "isn't": "is",
       "aren't": "are",
       "wasn't": "was",
@@ -288,15 +306,16 @@ function tryBaseForm(word, store, resolve, originalWord) {
       "hadn't": "had",
       "won't": "will",
       "wouldn't": "would",
+      "wouldn't've": "would",
       "shouldn't": "should",
+      "shouldn't've": "should",
       "couldn't": "could",
-      "you're": "you",
-      "we're": "we",
-      "they're": "they",
+      "couldn't've": "could",      
       "don't": "do",
       "doesn't": "does",
       "didn't": "did",
-      "can't": "can"
+      "can't": "can",
+      "shan't": "shall"
     };
     
     const base = contractionMap[word];

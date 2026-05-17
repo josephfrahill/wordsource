@@ -10,6 +10,11 @@ function init() {
 // 🖱 AUTO LOOKUP (non-GDocs)
 // -----------------------------
 function handleMouseUp(e) {
+  // Ignore clicks inside tooltip
+  if (e.target.closest('#etymology-tooltip')) {
+    return;
+  }
+
   const text = getSelectionText();
 
   if (!text) return;
@@ -95,7 +100,7 @@ async function getBreakdown(text) {
   const words = text.toLowerCase().match(/[a-z'-]+/g) || [];
   
   if (words.length === 0) {
-    return { total: 0, counts: {}, percentages: {} };
+    return { total: 0, counts: {}, percentages: {}, results: [] };
   }
 
   // Lookup all words
@@ -125,7 +130,8 @@ async function getBreakdown(text) {
     total,
     counts,
     percentages,
-    sorted
+    sorted,
+    results  // ← NEW: Store the full results so we can extract words by origin
   };
 }
 
@@ -285,13 +291,18 @@ function showBreakdownTooltip(breakdown, x, y) {
     position: absolute;
     left: ${x + 5}px;
     top: ${y + 10}px;
-    pointer-events: none;
   `;
 
   document.body.appendChild(tooltip);
 
+  // Don't remove on click inside tooltip
   setTimeout(() => {
-    document.addEventListener('click', removeTooltip, { once: true });
+    const removeOnOutsideClick = (e) => {
+      if (!tooltip.contains(e.target)) {
+        removeTooltip();
+      }
+    };
+    document.addEventListener('click', removeOnOutsideClick, { once: true });
     document.addEventListener('keydown', removeTooltip, { once: true });
   }, 100);
 }
@@ -318,8 +329,14 @@ function showBreakdownTooltipFixed(breakdown) {
 
   document.body.appendChild(tooltip);
 
+  // Don't remove on click inside tooltip
   setTimeout(() => {
-    document.addEventListener('click', removeTooltip, { once: true });
+    const removeOnOutsideClick = (e) => {
+      if (!tooltip.contains(e.target)) {
+        removeTooltip();
+      }
+    };
+    document.addEventListener('click', removeOnOutsideClick, { once: true });
     document.addEventListener('keydown', removeTooltip, { once: true });
   }, 100);
 }
@@ -343,9 +360,10 @@ function buildBreakdownTooltip(breakdown) {
   breakdown.sorted.forEach(([origin, percentage]) => {
     const color = colors[origin] || colors.Other;
     const count = breakdown.counts[origin];
+    const originId = origin.replace(/\s+/g, '-').toLowerCase();
     
     html += `
-      <div style="margin-bottom: 8px;">
+      <div style="margin-bottom: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <span style="font-weight: 500;">${origin}</span>
           <span style="font-size: 16px; font-weight: bold;">${percentage}%</span>
@@ -353,7 +371,51 @@ function buildBreakdownTooltip(breakdown) {
         <div style="background: rgba(255,255,255,0.3); border-radius: 10px; height: 6px; overflow: hidden;">
           <div style="background: ${color}; width: ${percentage}%; height: 100%;"></div>
         </div>
-        <small style="opacity: 0.8;">${count} word${count !== 1 ? 's' : ''}</small>
+        <div 
+          class="word-count-toggle" 
+          data-origin="${originId}"
+          style="
+            opacity: 0.8; 
+            cursor: pointer; 
+            margin-top: 4px;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+          "
+        >
+          <small>${count} word${count !== 1 ? 's' : ''}</small>
+          <svg 
+            class="toggle-arrow" 
+            width="12" 
+            height="12" 
+            viewBox="0 0 12 12" 
+            style="transition: transform 0.2s; fill: currentColor;"
+          >
+            <path d="M3 5 L6 8 L9 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div 
+          class="word-list" 
+          data-origin="${originId}"
+          style="
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            margin-top: 0;
+          "
+        >
+          <div style="
+            background: rgba(0,0,0,0.2); 
+            border-radius: 6px; 
+            padding: 8px; 
+            margin-top: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+          ">
+            ${getWordsForOrigin(breakdown.results, origin).join(', ')}
+          </div>
+        </div>
       </div>
     `;
   });
@@ -370,11 +432,43 @@ function buildBreakdownTooltip(breakdown) {
     font-size: 14px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     min-width: 240px;
-    max-width: 300px;
+    max-width: 320px;
     line-height: 1.4;
+    pointer-events: auto;
   `;
 
+  // Add click handlers
+  setTimeout(() => {
+    tooltip.querySelectorAll('.word-count-toggle').forEach(toggle => {
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const origin = toggle.dataset.origin;
+        const wordList = tooltip.querySelector(`.word-list[data-origin="${origin}"]`);
+        const arrow = toggle.querySelector('.toggle-arrow');
+        
+        const isExpanded = wordList.style.maxHeight !== '0px' && wordList.style.maxHeight !== '';
+        
+        if (isExpanded) {
+          wordList.style.maxHeight = '0';
+          arrow.style.transform = 'rotate(0deg)';
+        } else {
+          wordList.style.maxHeight = wordList.scrollHeight + 'px';
+          arrow.style.transform = 'rotate(180deg)';
+        }
+      });
+    });
+  }, 10);
+
   return tooltip;
+}
+
+function getWordsForOrigin(results, targetOrigin) {
+  return results
+    .filter(result => {
+      const origin = result.error ? 'Unknown' : result.origin;
+      return origin === targetOrigin;
+    })
+    .map(result => result.word);
 }
 
 function removeTooltip() {

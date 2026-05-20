@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Etymology Checker",
+  "name": "WordSource",
   "version": "1.0",
-  "description": "Check if words are Germanic or Latinate.",
+  "description": "View the linguistic source of highlighted words; Germanic, Latinate, Persian etc.",
   "permissions": ["clipboardRead"],
   "background": {
     "service_worker": "background.js"
@@ -12,7 +12,7 @@
       "suggested_key": {
         "default": "Ctrl+Q"
       },
-      "description": "Lookup selected word"
+      "description": "Lookup selected word(s)"
     }
   },
   "content_scripts": [

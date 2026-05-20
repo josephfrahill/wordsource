@@ -1,5 +1,3 @@
-word-origin
-
 A lightweight browser extension that instantly shows the linguistic origin of a highlighted word.
 
 ✨ Features
@@ -11,6 +9,7 @@ Simple, unobtrusive tooltip UI
 ⚡ Usage
 Mouse: Highlight a word → origin appears automatically
 Keyboard: Highlight text → press Ctrl + Q
+
 🧠 How it works
 
 The extension checks a local dataset of words and displays:

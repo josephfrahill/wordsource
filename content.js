@@ -97,7 +97,9 @@ async function lookupAndShowBreakdownFixed(text) {
 
 async function getBreakdown(text) {
   // Extract words (alphanumeric + apostrophes/hyphens)
-  const words = text.toLowerCase().match(/[a-z'-]+/g) || [];
+  const wordsUnfiltered = text.toLowerCase().match(/[a-z'-]+/g) || [];
+
+  var words = [... new Set(wordsUnfiltered)]
   
   if (words.length === 0) {
     return { total: 0, counts: {}, percentages: {}, results: [] };
@@ -168,6 +170,7 @@ function getSelectionText() {
   }
 }
 
+// can be movwed inside 
 async function getClipboardText() {
   try {
     document.execCommand('copy');

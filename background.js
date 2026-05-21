@@ -42,9 +42,16 @@ async function seedDatabase() {
   try {
     console.log('Fetching word data...');
     const response = await fetch(chrome.runtime.getURL('data/words.json'));
-    const words = await response.json();
+    const data = await response.json();
+    
+    // Handle new metadata structure
+    const words = data.words || data;
+    const metadata = data.metadata || {};
     
     console.log(`Loaded ${words.length} words from JSON`);
+    if (metadata.generatedAt) {
+      console.log(`Data generated: ${metadata.generatedAt}`);
+    }
 
     return new Promise((resolve, reject) => {
       const tx = db.transaction('words', 'readwrite');

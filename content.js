@@ -96,8 +96,9 @@ async function lookupAndShowBreakdownFixed(text) {
 }
 
 async function getBreakdown(text) {
-  // Extract words (alphanumeric + apostrophes/hyphens)
-  const wordsUnfiltered = text.toLowerCase().match(/[a-z'-]+/g) || [];
+  // Extract words: letters (including accents) + apostrophes/hyphens
+  // \p{L} matches any Unicode letter, including accented characters like é, à, ü
+  const wordsUnfiltered = text.toLowerCase().match(/[\p{L}'-]+/gu) || [];
 
   var words = [... new Set(wordsUnfiltered)]
   
@@ -133,13 +134,23 @@ async function getBreakdown(text) {
     counts,
     percentages,
     sorted,
-    results  // ← NEW: Store the full results so we can extract words by origin
+    results  // ← Store the full results so we can extract words by origin
   };
 }
 
 function lookupWordPromise(word) {
   return new Promise((resolve) => {
     safeSendMessage({ action: 'lookup', word }, (response) => {
+      // If not found, try with accents removed (clichéd → cliched)
+      if (!response || response.error) {
+        const normalized = word.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (normalized !== word) {
+          safeSendMessage({ action: 'lookup', word: normalized }, (retryResponse) => {
+            resolve(retryResponse || { word, error: true });
+          });
+          return;
+        }
+      }
       resolve(response || { word, error: true });
     });
   });
@@ -170,7 +181,7 @@ function getSelectionText() {
   }
 }
 
-// can be movwed inside 
+// can be moved inside 
 async function getClipboardText() {
   try {
     document.execCommand('copy');

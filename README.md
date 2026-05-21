@@ -26,3 +26,16 @@ Phrase support
 Better Google Docs integration
 Expanded word dataset
 Customisable UI / positioning
+
+indexedDB.deleteDatabase('EtymologyDB')
+
+
+
+ "metadata": {
+    "totalWordCount": 358128,
+    "supportedLanguages": [
+      "English"
+    ],
+    "source": "https://github.com/droher/etymology-db",
+    "generatedAt": "2026-05-20T10:50:54.177Z"
+  },

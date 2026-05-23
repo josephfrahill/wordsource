@@ -92,7 +92,11 @@ function trackMissingWord(word) {
 
   // Don't track very short words, numbers, or obvious noise
   if (!word || word.length < 3) return;
-  if (!/^[a-z'-]+$/i.test(word)) return;
+  if (!/^[a-z'-]+$/i.test(word)) return;  // allow hyphens too
+  // (hyphens filtered out upstream before trackMissingWord is called,
+  // but guard here just in case)
+
+  console.log(`Tracking missing word: "${word}"`);
 
   const tx = db.transaction('missing_words', 'readwrite');
   const store = tx.objectStore('missing_words');
@@ -273,7 +277,7 @@ async function lookupWord(word) {
             if (normalizedRequest.result) {
               resolve(normalizedRequest.result);
             } else {
-              tryBaseForm(cleanWord, normalizedWord, store, (result) => {
+                      tryBaseForm(cleanWord, normalizedWord, db, (result) => {
                 if (result.error) {
                   trackMissingWord(cleanWord);
                 }
@@ -282,7 +286,7 @@ async function lookupWord(word) {
             }
           };
           normalizedRequest.onerror = () => {
-            tryBaseForm(cleanWord, normalizedWord, store, (result) => {
+            tryBaseForm(cleanWord, normalizedWord, db, (result) => {
               if (result.error) {
                 trackMissingWord(cleanWord);
               }
@@ -299,8 +303,11 @@ async function lookupWord(word) {
   });
 }
 
-function tryBaseForm(cleanWord, normalizedWord, store, resolve, originalWord) {
+function tryBaseForm(cleanWord, normalizedWord, db, resolve, originalWord) {
   const attempts = [];
+  // Open a fresh transaction — the caller's transaction may have already closed
+  const tx = db.transaction('words', 'readonly');
+  const store = tx.objectStore('words');
 
   // Possessive 's — try stripping "'s" or "s" at end as first attempt
   // e.g. "boyfriend's" → "boyfriend", "90s" → "90" (no letters, will fail fast)

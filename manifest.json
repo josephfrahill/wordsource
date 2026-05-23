@@ -3,7 +3,8 @@
   "name": "WordSource",
   "version": "1.0",
   "description": "View the linguistic source of highlighted words; Germanic, Latinate, Persian etc.",
-  "permissions": ["clipboardRead"],
+  "permissions": ["clipboardRead", "downloads"],
+  "action": { "default_popup": "popup.html" },
   "background": {
     "service_worker": "background.js"
   },

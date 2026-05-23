@@ -96,47 +96,39 @@ async function lookupAndShowBreakdownFixed(text) {
 }
 
 async function getBreakdown(text) {
-  // Extract words: letters (including accents) + apostrophes/hyphens
-  // \p{L} matches any Unicode letter, including accented characters like é, à, ü
-  const wordsUnfiltered = text.toLowerCase().match(/[\p{L}'-]+/gu) || [];
-
-  var words = [... new Set(wordsUnfiltered)]
-  
+  // Normalise curly apostrophes → straight before tokenising
+  const normalisedText = text.replace(/[\u2018\u2019\u02bc]/g, "'");
+ 
+  const wordsUnfiltered = normalisedText.toLowerCase().match(/[\p{L}'-]+/gu) || [];
+ 
+  // Deduplicate
+  const words = [...new Set(wordsUnfiltered)];
+ 
   if (words.length === 0) {
     return { total: 0, counts: {}, percentages: {}, results: [] };
   }
-
-  // Lookup all words
+ 
   const results = await Promise.all(
     words.map(word => lookupWordPromise(word))
   );
-
-  // Count origins
+ 
   const counts = {};
   results.forEach(result => {
     const origin = result.error ? 'Unknown' : result.origin;
     counts[origin] = (counts[origin] || 0) + 1;
   });
-
-  // Calculate percentages
+ 
   const total = words.length;
   const percentages = {};
   Object.keys(counts).forEach(origin => {
     percentages[origin] = Math.round((counts[origin] / total) * 100);
   });
-
-  // Sort by percentage (descending)
-  const sorted = Object.entries(percentages)
-    .sort((a, b) => b[1] - a[1]);
-
-  return {
-    total,
-    counts,
-    percentages,
-    sorted,
-    results  // ← Store the full results so we can extract words by origin
-  };
+ 
+  const sorted = Object.entries(percentages).sort((a, b) => b[1] - a[1]);
+ 
+  return { total, counts, percentages, sorted, results };
 }
+ 
 
 function lookupWordPromise(word) {
   return new Promise((resolve) => {

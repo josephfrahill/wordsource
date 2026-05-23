@@ -10,19 +10,19 @@ function init() {
 // 🖱 AUTO LOOKUP (non-GDocs)
 // -----------------------------
 function handleMouseUp(e) {
-  // Ignore clicks inside tooltip
-  if (e.target.closest('#etymology-tooltip')) {
-    return;
-  }
-
+  if (e.target.closest('#etymology-tooltip')) return;
+ 
   const text = getSelectionText();
-
   if (!text) return;
-
+ 
   if (isSingleWord(text)) {
-    lookupAndShow(text, e.pageX, e.pageY);
+    // Reroute hyphenated words into breakdown so each part is looked up
+    if (text.includes('-')) {
+      lookupAndShowBreakdown(text, e.pageX, e.pageY);
+    } else {
+      lookupAndShow(text, e.pageX, e.pageY);
+    }
   } else {
-    // Multi-word: show breakdown
     lookupAndShowBreakdown(text, e.pageX, e.pageY);
   }
 }
@@ -41,17 +41,20 @@ chrome.runtime.onMessage.addListener((msg) => {
 async function handleManualLookup() {
   document.execCommand('copy');
   await new Promise(r => setTimeout(r, 50));
-
+ 
   let text = await getClipboardText();
   if (!text) return;
-
+ 
   if (isSingleWord(text)) {
-    lookupAndShowWithFeedback(text, { mode: 'fixed' });
+    if (text.includes('-')) {
+      lookupAndShowBreakdownFixed(text);
+    } else {
+      lookupAndShowWithFeedback(text, { mode: 'fixed' });
+    }
   } else {
     lookupAndShowBreakdownFixed(text);
   }
 }
-
 // -----------------------------
 // 🔍 CORE LOGIC - Single Word
 // -----------------------------
@@ -96,20 +99,47 @@ async function lookupAndShowBreakdownFixed(text) {
 }
 
 async function getBreakdown(text) {
-  // Normalise curly apostrophes → straight before tokenising
+  // Normalise curly apostrophes → straight
   const normalisedText = text.replace(/[\u2018\u2019\u02bc]/g, "'");
  
-  const wordsUnfiltered = normalisedText.toLowerCase().match(/[\p{L}'-]+/gu) || [];
+  // Step 1: split on whitespace to get raw tokens
+  const rawTokens = normalisedText.toLowerCase().split(/\s+/);
  
-  // Deduplicate
-  const words = [...new Set(wordsUnfiltered)];
+  const words = new Set();
  
-  if (words.length === 0) {
+  for (const raw of rawTokens) {
+    // Step 2: strip leading non-letter/non-hyphen chars, strip trailing non-letter chars
+    // Leading: remove [, ', ", !, etc. — keep hyphens and letters
+    // Trailing: remove ], ', ", !, ,, . etc. — keep only letters and hyphens
+    const stripped = raw
+      .replace(/^[^a-z-]+/g, '')   // strip leading punctuation
+      .replace(/[^a-z-]+$/g, '');  // strip trailing punctuation
+    if (!stripped) continue;
+ 
+    // Step 3: split hyphenated compounds → look up each part individually
+    const parts = stripped.split('-').filter(p => p.length > 0);
+ 
+    for (const part of parts) {
+      // Strip any remaining leading/trailing apostrophes
+      const clean = part.replace(/^'+|'+$/g, '');
+      if (!clean) continue;
+ 
+      // Must contain at least one actual letter
+      if (!/[a-z]/.test(clean)) continue;
+ 
+      // Skip single chars that aren't real words
+      if (clean.length === 1 && !['a', 'i'].includes(clean)) continue;
+ 
+      words.add(clean);
+    }
+  }
+ 
+  if (words.size === 0) {
     return { total: 0, counts: {}, percentages: {}, results: [] };
   }
  
   const results = await Promise.all(
-    words.map(word => lookupWordPromise(word))
+    [...words].map(word => lookupWordPromise(word))
   );
  
   const counts = {};
@@ -118,7 +148,7 @@ async function getBreakdown(text) {
     counts[origin] = (counts[origin] || 0) + 1;
   });
  
-  const total = words.length;
+  const total = words.size;
   const percentages = {};
   Object.keys(counts).forEach(origin => {
     percentages[origin] = Math.round((counts[origin] / total) * 100);
@@ -128,7 +158,6 @@ async function getBreakdown(text) {
  
   return { total, counts, percentages, sorted, results };
 }
- 
 
 function lookupWordPromise(word) {
   return new Promise((resolve) => {

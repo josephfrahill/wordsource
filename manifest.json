@@ -4,7 +4,7 @@
   "version": "1.0",
   "description": "View the linguistic source of highlighted words; Germanic, Latinate, Persian etc.",
   "permissions": ["clipboardRead", "downloads"],
-  "action": { "default_popup": "popup.html" },
+  "action": { "default_popup": "html/popup.html" },
   "background": {
     "service_worker": "background.js"
   },
@@ -20,7 +20,7 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "css": ["styles.css"],
+      "css": ["css/styles.css"],
       "all_frames": true
     }
   ],

@@ -224,7 +224,20 @@ async function lookupWord(word) {
       return;
     }
 
-    const cleanWord = normaliseApostrophes(word.toLowerCase().trim());
+    const rawWord = normaliseApostrophes(word.toLowerCase().trim());
+    // Strip all leading/trailing non-letter chars (including hyphens at boundaries)
+    // then if the result is hyphenated (e.g. "45-minute"), take the first meaningful part
+    const strippedWord = rawWord
+      .replace(/^[^a-z]+/g, '')   // strip leading punctuation + hyphens + numbers
+      .replace(/[^a-z-]+$/g, '')  // strip trailing punctuation (keep internal hyphens)
+      .replace(/-+$/g, '');       // strip any trailing hyphens left over
+
+    // For hyphenated compounds, look up the first alphabetic part only
+    // e.g. "45-minute" → "minute", "well-known" → "well"
+    const cleanWord = strippedWord.includes('-')
+      ? strippedWord.split('-').find(p => /[a-z]/.test(p)) || strippedWord
+      : strippedWord;
+
     const normalizedWord = removeDiacritics(cleanWord);
 
     const tx = db.transaction('words', 'readonly');
@@ -289,6 +302,14 @@ async function lookupWord(word) {
 function tryBaseForm(cleanWord, normalizedWord, store, resolve, originalWord) {
   const attempts = [];
 
+  // Possessive 's — try stripping "'s" or "s" at end as first attempt
+  // e.g. "boyfriend's" → "boyfriend", "90s" → "90" (no letters, will fail fast)
+  if (cleanWord.endsWith("'s")) {
+    attempts.push(cleanWord.slice(0, -2));
+  } else if (cleanWord.endsWith('s') && cleanWord.length > 2) {
+    // Push plain -s strip as first attempt (covers plurals and bare possessives like "Momokas")
+    attempts.push(cleanWord.slice(0, -1));
+  }
 
   continueWithSuffixes();
 

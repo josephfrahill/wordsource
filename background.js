@@ -52,7 +52,7 @@ const initDB = () => {
 async function seedDatabase() {
   try {
     console.log('Fetching word data...');
-    const response = await fetch(chrome.runtime.getURL('data/words.json'));
+    const response = await fetch(chrome.runtime.getURL('data/words-etymology-db.json'));
     const data = await response.json();
 
     const words = data.words || data;
@@ -224,7 +224,7 @@ const CONTRACTION_MAP = {
 async function lookupWord(word) {
   return new Promise((resolve) => {
     if (!db) {
-      resolve({ word, origin: 'database not ready', error: true });
+      resolve({ word, origin: 'Database loading...', error: true });
       return;
     }
 

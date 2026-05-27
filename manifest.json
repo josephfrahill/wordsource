@@ -26,7 +26,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["data/words.json"],
+      "resources": ["data/words-etymology-db.json"],
       "matches": ["<all_urls>"]
     }
   ],

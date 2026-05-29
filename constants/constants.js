@@ -1,3 +1,19 @@
+export const CONTRACTION_MAP = {
+  "i'm": "i", "i've": "i", "i'd": "i", "i'll": "i",
+  "you're": "you", "you've": "you", "you'd": "you", "you'll": "you",
+  "it's": "it", "it've": "it", "it'd": "it", "it'll": "it",
+  "we're": "we", "we've": "we", "we'd": "we", "we'll": "we",
+  "they're": "they", "they've": "they", "they'd": "they", "they'll": "they",
+  "isn't": "is", "aren't": "are", "wasn't": "was", "weren't": "were",
+  "haven't": "have", "hasn't": "has", "hadn't": "had",
+  "won't": "will", "wouldn't": "would", "wouldn't've": "would",
+  "shouldn't": "should", "shouldn't've": "should",
+  "couldn't": "could", "couldn't've": "could",
+  "don't": "do", "doesn't": "does", "didn't": "did",
+  "can't": "can", "shan't": "shall",
+};
+
+
 // Irregular past tense -> base form
 
 const IRREGULAR_PAST_MAP = {

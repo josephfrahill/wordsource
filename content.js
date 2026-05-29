@@ -294,7 +294,7 @@ function buildTooltip(wordData) {
   if (wordData.source_lang) {
     html += `<br><small>from ${wordData.source_lang}`;
     if (wordData.source_word) {
-      html += ` <em>${wordData.source_word}</em>`;
+      html += ` <a href=${`https://en.wiktionary.org/wiki/${encodeURIComponent(wordData.source_word)}`}>${wordData.source_word}</a>`;
     }
     html += `</small>`;
   }

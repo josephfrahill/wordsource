@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "WordSource",
   "version": "1.0",
-  "description": "View the linguistic source of highlighted words; Germanic, Latinate, Persian etc.",
+  "description": "View the linguistic source of highlighted words; Germanic, Latinate, Greek etc.",
   "permissions": ["clipboardRead", "downloads"],
   "action": { "default_popup": "html/popup.html" },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "commands": {
     "lookup-word": {

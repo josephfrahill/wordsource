@@ -1,4 +1,8 @@
-// background.js
+import {trackMissingWord, getMissingWordsCount, exportMissingWords, clearMissingWords}
+ from './missingWords.js';
+import {capitalize, removeDiacritics, normaliseApostrophes} from './utils.js';
+import {CONTRACTION_MAP} from './constants/constants.js'
+
 let db;
 
 const DB_VERSION = 3; // bumped from 2 to add missing_words store
@@ -85,337 +89,237 @@ async function seedDatabase() {
   }
 }
 
-// ─── Missing words tracking ───────────────────────────────────────────────────
+// ─── IndexedDB Helpers ────────────────────────────────────────────────────────
 
-function trackMissingWord(word) {
-  if (!db) return;
-
-  // Don't track very short words, numbers, or obvious noise
-  if (!word || word.length < 3) return;
-  if (!/^[a-z'-]+$/i.test(word)) return;  // allow hyphens too
-  // (hyphens filtered out upstream before trackMissingWord is called,
-  // but guard here just in case)
-
-  console.log(`Tracking missing word: "${word}"`);
-
-  const tx = db.transaction('missing_words', 'readwrite');
-  const store = tx.objectStore('missing_words');
-
-  const getReq = store.get(word);
-  getReq.onsuccess = () => {
-    if (getReq.result) {
-      // Already tracked — increment count
-      const existing = getReq.result;
-      existing.count += 1;
-      existing.lastSeen = new Date().toISOString();
-      store.put(existing);
-    } else {
-      // First time seeing this word
-      store.put({
-        word,
-        count: 1,
-        firstSeen: new Date().toISOString(),
-        lastSeen: new Date().toISOString(),
-      });
-    }
-  };
-}
-
-async function getMissingWordsCount() {
+/**
+ * Promisify IndexedDB get operation
+ */
+function dbGet(store, key) {
   return new Promise((resolve) => {
-    if (!db) { resolve(0); return; }
-    const tx = db.transaction('missing_words', 'readonly');
-    const store = tx.objectStore('missing_words');
-    const req = store.count();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => resolve(0);
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
   });
-}
-
-async function exportMissingWords() {
-  return new Promise((resolve, reject) => {
-    if (!db) { reject(new Error('DB not ready')); return; }
-
-    const tx = db.transaction('missing_words', 'readonly');
-    const store = tx.objectStore('missing_words');
-    const req = store.getAll();
-
-    req.onsuccess = () => {
-      const words = req.result;
-
-      // Sort by count descending so highest-priority words are at the top
-      words.sort((a, b) => b.count - a.count);
-
-      const output = {
-        metadata: {
-          totalMissingWords: words.length,
-          exportedAt: new Date().toISOString(),
-        },
-        words,
-      };
-
-      const json = JSON.stringify(output, null, 2);
-
-      // MV3 service workers don't have URL.createObjectURL — use a data URI instead
-      const dataUrl = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
-
-      console.log(`Exporting ${words.length} missing words...`);
-
-      chrome.downloads.download(
-        { url: dataUrl, filename: 'words_missing.json', saveAs: true },
-        (downloadId) => {
-          if (chrome.runtime.lastError) {
-            console.error('Download failed:', chrome.runtime.lastError);
-            reject(chrome.runtime.lastError);
-          } else {
-            console.log(`Download started, id: ${downloadId}`);
-            resolve({ downloadId, count: words.length });
-          }
-        }
-      );
-    };
-
-    req.onerror = () => reject(new Error('Failed to read missing_words store'));
-  });
-}
-
-async function clearMissingWords() {
-  return new Promise((resolve, reject) => {
-    if (!db) { reject(new Error('DB not ready')); return; }
-    const tx = db.transaction('missing_words', 'readwrite');
-    const req = tx.objectStore('missing_words').clear();
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(new Error('Failed to clear missing_words store'));
-  });
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function capitalize(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-function removeDiacritics(str) {
-  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
-// Normalise curly/smart apostrophes to straight so contraction map keys match
-function normaliseApostrophes(str) {
-  return str.replace(/[\u2018\u2019\u02bc]/g, "'");
 }
 
 // ─── Main lookup ──────────────────────────────────────────────────────────────
 
-const CONTRACTION_MAP = {
-  "i'm": "i", "i've": "i", "i'd": "i", "i'll": "i",
-  "you're": "you", "you've": "you", "you'd": "you", "you'll": "you",
-  "it's": "it", "it've": "it", "it'd": "it", "it'll": "it",
-  "we're": "we", "we've": "we", "we'd": "we", "we'll": "we",
-  "they're": "they", "they've": "they", "they'd": "they", "they'll": "they",
-  "isn't": "is", "aren't": "are", "wasn't": "was", "weren't": "were",
-  "haven't": "have", "hasn't": "has", "hadn't": "had",
-  "won't": "will", "wouldn't": "would", "wouldn't've": "would",
-  "shouldn't": "should", "shouldn't've": "should",
-  "couldn't": "could", "couldn't've": "could",
-  "don't": "do", "doesn't": "does", "didn't": "did",
-  "can't": "can", "shan't": "shall",
-};
-
-async function lookupWord(word) {
-  return new Promise((resolve) => {
-    if (!db) {
-      resolve({ word, origin: 'Database loading...', error: true });
-      return;
-    }
-
-    const rawWord = normaliseApostrophes(word.toLowerCase().trim());
-    // Strip all leading/trailing non-letter chars (including hyphens at boundaries)
-    // then if the result is hyphenated (e.g. "45-minute"), take the first meaningful part
-    const strippedWord = rawWord
-      .replace(/^[^a-z]+/g, '')   // strip leading punctuation + hyphens + numbers
-      .replace(/[^a-z-]+$/g, '')  // strip trailing punctuation (keep internal hyphens)
-      .replace(/-+$/g, '');       // strip any trailing hyphens left over
-
-    // For hyphenated compounds, look up the first alphabetic part only
-    // e.g. "45-minute" → "minute", "well-known" → "well"
-    const cleanWord = strippedWord.includes('-')
-      ? strippedWord.split('-').find(p => /[a-z]/.test(p)) || strippedWord
-      : strippedWord;
-
-    const normalizedWord = removeDiacritics(cleanWord);
-
-    const tx = db.transaction('words', 'readonly');
-    const store = tx.objectStore('words');
-
-    // Contractions: always resolve via base word so tooltip shows the arrow,
-    // even when the contraction itself (e.g. "i'm" -> "i") exists in the DB.
-    if (cleanWord.includes("'")) {
-      const baseWord = CONTRACTION_MAP[cleanWord] || cleanWord.split("'")[0];
-      const req = store.get(baseWord);
-      req.onsuccess = () => {
-        if (req.result) {
-          resolve({ ...req.result, word, base_form: baseWord });
-        } else {
-          doLookup();
-        }
-      };
-      req.onerror = () => doLookup();
-      return;
-    }
-
-    doLookup();
-
-    function doLookup() {
-      const request = store.get(cleanWord);
-
-      request.onsuccess = () => {
-        if (request.result) {
-          resolve(request.result);
-        } else {
-          const normalizedRequest = store.get(normalizedWord);
-          normalizedRequest.onsuccess = () => {
-            if (normalizedRequest.result) {
-              resolve(normalizedRequest.result);
-            } else {
-                      tryBaseForm(cleanWord, normalizedWord, db, (result) => {
-                if (result.error) {
-                  trackMissingWord(cleanWord);
-                }
-                resolve(result);
-              }, word);
-            }
-          };
-          normalizedRequest.onerror = () => {
-            tryBaseForm(cleanWord, normalizedWord, db, (result) => {
-              if (result.error) {
-                trackMissingWord(cleanWord);
-              }
-              resolve(result);
-            }, word);
-          };
-        }
-      };
-
-      request.onerror = () => {
-        resolve({ word, origin: 'lookup error', error: true });
-      };
-    }
-  });
+/**
+ * Resolve contractions to their base word via CONTRACTION_MAP
+ */
+async function resolveContraction(cleanWord, store) {
+  if (!cleanWord.includes("'")) return null;
+  
+  const baseWord = CONTRACTION_MAP[cleanWord] || cleanWord.split("'")[0];
+  const result = await dbGet(store, baseWord);
+  
+  if (result) {
+    return { ...result, word: cleanWord, base_form: baseWord };
+  }
+  return null;
 }
 
-function tryBaseForm(cleanWord, normalizedWord, db, resolve, originalWord) {
+/**
+ * Try word in various base forms (plurals, tenses, etc.)
+ * Returns the first match found, or null
+ */
+async function tryBaseForm(cleanWord, store, originalWord) {
   const attempts = [];
-  // Open a fresh transaction — the caller's transaction may have already closed
-  const tx = db.transaction('words', 'readonly');
-  const store = tx.objectStore('words');
 
-  // Possessive 's — try stripping "'s" or "s" at end as first attempt
-  // e.g. "boyfriend's" → "boyfriend", "90s" → "90" (no letters, will fail fast)
+  // Possessive 's
   if (cleanWord.endsWith("'s")) {
     attempts.push(cleanWord.slice(0, -2));
   } else if (cleanWord.endsWith('s') && cleanWord.length > 2) {
-    // Push plain -s strip as first attempt (covers plurals and bare possessives like "Momokas")
     attempts.push(cleanWord.slice(0, -1));
   }
 
-  continueWithSuffixes();
-
-  function continueWithSuffixes() {
-    if (cleanWord.endsWith('ly')) {
-      attempts.push(cleanWord.slice(0, -2));
-      attempts.push(cleanWord.slice(0, -2) + 'le');
-    }
-
-    if (cleanWord.endsWith('ed')) {
-      attempts.push(cleanWord.slice(0, -1));
-      attempts.push(cleanWord.slice(0, -2));
-      if (cleanWord.length > 3) {
-        const lastTwo = cleanWord.slice(-4, -2);
-        if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -3));
-      }
-      if (cleanWord.endsWith('ied')) attempts.push(cleanWord.slice(0, -3) + 'y');
-    }
-
-    if (cleanWord.endsWith('ing')) {
-      attempts.push(cleanWord.slice(0, -3));
-      if (cleanWord.length > 4) {
-        const lastTwo = cleanWord.slice(-5, -3);
-        if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -4));
-      }
-      if (cleanWord.endsWith('ying')) attempts.push(cleanWord.slice(0, -4) + 'y');
-    }
-
-    if (cleanWord.endsWith('s') && !cleanWord.endsWith('ss')) {
-      const withoutS = cleanWord.slice(0, -1);
-      attempts.push(withoutS);
-      if (withoutS.endsWith('er')) attempts.push(withoutS.slice(0, -2));
-      if (withoutS.endsWith('or')) attempts.push(withoutS.slice(0, -2));
-      if (cleanWord.endsWith('es')) attempts.push(cleanWord.slice(0, -2));
-      if (cleanWord.endsWith('ies')) attempts.push(cleanWord.slice(0, -3) + 'y');
-    }
-
-    if (cleanWord.endsWith('er') && !cleanWord.endsWith('eer')) {
-      attempts.push(cleanWord.slice(0, -2));
-      if (cleanWord.length > 3) {
-        const lastTwo = cleanWord.slice(-4, -2);
-        if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -3));
-      }
-    }
-
-    if (cleanWord.endsWith('or')) attempts.push(cleanWord.slice(0, -2));
-
-    if (cleanWord.endsWith('est')) {
-      attempts.push(cleanWord.slice(0, -3));
-      if (cleanWord.length > 4) {
-        const lastTwo = cleanWord.slice(-5, -3);
-        if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -4));
-      }
-    } else if (cleanWord.endsWith('er')) {
-      const base = cleanWord.slice(0, -2);
-      if (!attempts.includes(base)) {
-        attempts.push(base);
-        if (cleanWord.length > 3) {
-          const lastTwo = cleanWord.slice(-4, -2);
-          if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -3));
-        }
-      }
-    }
-
-    tryNextAttempt(0);
+  // -ly adverbs
+  if (cleanWord.endsWith('ly')) {
+    attempts.push(cleanWord.slice(0, -2));
+    attempts.push(cleanWord.slice(0, -2) + 'le');
   }
 
-  function tryNextAttempt(index) {
-    if (index >= attempts.length) {
-      resolve({ word: originalWord, origin: 'not found', error: true });
-      return;
+  // Past tense -ed
+  if (cleanWord.endsWith('ed')) {
+    attempts.push(cleanWord.slice(0, -1));
+    attempts.push(cleanWord.slice(0, -2));
+    if (cleanWord.length > 3) {
+      const lastTwo = cleanWord.slice(-4, -2);
+      if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -3));
+    }
+    if (cleanWord.endsWith('ied')) attempts.push(cleanWord.slice(0, -3) + 'y');
+  }
+
+  // Present participle -ing
+  if (cleanWord.endsWith('ing')) {
+    attempts.push(cleanWord.slice(0, -3));
+    if (cleanWord.length > 4) {
+      const lastTwo = cleanWord.slice(-5, -3);
+      if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -4));
+    }
+    if (cleanWord.endsWith('ying')) attempts.push(cleanWord.slice(0, -4) + 'y');
+  }
+
+  // Plural -s/-es
+  if (cleanWord.endsWith('s') && !cleanWord.endsWith('ss')) {
+    const withoutS = cleanWord.slice(0, -1);
+    attempts.push(withoutS);
+    if (withoutS.endsWith('er')) attempts.push(withoutS.slice(0, -2));
+    if (withoutS.endsWith('or')) attempts.push(withoutS.slice(0, -2));
+    if (cleanWord.endsWith('es')) attempts.push(cleanWord.slice(0, -2));
+    if (cleanWord.endsWith('ies')) attempts.push(cleanWord.slice(0, -3) + 'y');
+  }
+
+  // Comparative -er
+  if (cleanWord.endsWith('er') && !cleanWord.endsWith('eer')) {
+    attempts.push(cleanWord.slice(0, -2));
+    if (cleanWord.length > 3) {
+      const lastTwo = cleanWord.slice(-4, -2);
+      if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -3));
+    }
+  }
+
+  // Agent noun -or
+  if (cleanWord.endsWith('or')) {
+    attempts.push(cleanWord.slice(0, -2));
+  }
+
+  // Superlative -est
+  if (cleanWord.endsWith('est')) {
+    attempts.push(cleanWord.slice(0, -3));
+    if (cleanWord.length > 4) {
+      const lastTwo = cleanWord.slice(-5, -3);
+      if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -4));
+    }
+  }
+
+  // Try each attempt in order
+  for (const baseForm of attempts) {
+    let result = await dbGet(store, baseForm);
+    if (result) {
+      return { ...result, word: originalWord, base_form: baseForm };
     }
 
-    const baseForm = attempts[index];
-    const req = store.get(baseForm);
-
-    req.onsuccess = () => {
-      if (req.result) {
-        resolve({ ...req.result, word: originalWord, base_form: baseForm });
-      } else {
-        const normalizedBase = removeDiacritics(baseForm);
-        if (normalizedBase !== baseForm) {
-          const normalizedReq = store.get(normalizedBase);
-          normalizedReq.onsuccess = () => {
-            if (normalizedReq.result) {
-              resolve({ ...normalizedReq.result, word: originalWord, base_form: normalizedBase });
-            } else {
-              tryNextAttempt(index + 1);
-            }
-          };
-          normalizedReq.onerror = () => tryNextAttempt(index + 1);
-        } else {
-          tryNextAttempt(index + 1);
-        }
+    /*
+    // Also try normalized version of base form
+    const normalizedBase = removeDiacritics(baseForm);
+    if (normalizedBase !== baseForm) {
+      result = await dbGet(store, normalizedBase);
+      if (result) {
+        return { ...result, word: originalWord, base_form: normalizedBase };
       }
-    };
-
-    req.onerror = () => tryNextAttempt(index + 1);
+    }
+      */
   }
+
+  return null;
+}
+
+/**
+ * Recursively resolve source words if no source_lang found
+ * Follows chains like: nonrecursive → recursive → recursus
+ * Limits to MAX_REDIRECT_DEPTH to avoid infinite chains
+ */
+async function resolveSourceChain(result, originalWord, depth = 0) {
+  const MAX_REDIRECT_DEPTH = 4;
+
+  // Stop if: has source_lang, is an error, at depth limit, or no source_word
+  if (result.error || result.source_lang || depth >= MAX_REDIRECT_DEPTH || !result.source_word) {
+    return result;
+  }
+
+  console.log(`Redirecting "${result.word}" → "${result.source_word}" (depth ${depth + 1})`);
+
+  // Look up the source word
+  const sourceResult = await lookupWord(result.source_word);
+
+  // If lookup failed, return original result
+  if (sourceResult.error) {
+    return result;
+  }
+
+  // If we found origin info, return it (keeping the original word)
+  if (sourceResult.source_lang) {
+    return { ...sourceResult, word: originalWord };
+  }
+
+  // No origin yet — recurse further if the source word also has a source_word
+  if (sourceResult.source_word) {
+    return resolveSourceChain(sourceResult, originalWord, depth + 1);
+  }
+
+  // Dead end — return what we have
+  return result;
+}
+
+/**
+ * Main word lookup function
+ * Returns { word, origin, source_lang, source_word, ... } or { word, error: true }
+ */
+async function lookupWord(word) {
+  if (!db) {
+    return { word, origin: 'Database loading...', error: true };
+  }
+
+  // Normalize input
+  const rawWord = normaliseApostrophes(word.toLowerCase().trim());
+  /*
+  const strippedWord = rawWord
+    .replace(/^[^a-z]+/g, '')   // strip leading punctuation + hyphens + numbers
+    .replace(/[^a-z-]+$/g, '')  // strip trailing punctuation (keep internal hyphens)
+    .replace(/-+$/g, '');       // strip trailing hyphens
+    */
+
+  const strippedWord = rawWord
+    .replace(/^[^\p{L}-]+/gu, '')   // Remove leading non-letters (Unicode-aware)
+    .replace(/[^\p{L}-]+$/gu, '')   // Remove trailing non-letters
+    .replace(/-+$/g, '');           // Strip trailing hyphens  
+
+  // For hyphenated compounds, take the first alphabetic part
+  const cleanWord = strippedWord.includes('-')
+    ? strippedWord.split('-').find(p => /[a-z]/.test(p)) || strippedWord
+    : strippedWord;
+
+  // Get a read-only transaction
+  const tx = db.transaction('words', 'readonly');
+  const store = tx.objectStore('words');
+
+  // Strategy 1: Try contraction resolution first
+  if (cleanWord.includes("'")) {
+    const result = await resolveContraction(cleanWord, store);
+    if (result) return result;
+  }
+
+  // Strategy 2: Exact match
+  let result = await dbGet(store, cleanWord);
+  if (result) {
+    // If no source_lang but has source_word, follow the chain
+    result = await resolveSourceChain(result, word);
+    return result;
+  }
+
+  /*
+  // Strategy 3: Normalized match (diacritics removed)
+  const normalizedWord = removeDiacritics(cleanWord);
+  if (normalizedWord !== cleanWord) {
+    result = await dbGet(store, normalizedWord);
+    if (result) {
+      result = await resolveSourceChain(result, word);
+      return result;
+    }
+  }
+  */
+
+  // Strategy 4: Try base forms (plurals, tenses, etc.)
+  result = await tryBaseForm(cleanWord, store, word);
+  if (result) {
+    result = await resolveSourceChain(result, word);
+    return result;
+  }
+
+  // Not found — track and return error
+  trackMissingWord(db, cleanWord);
+  return { word, origin: 'not found', error: true };
 }
 
 // ─── Init & message handling ──────────────────────────────────────────────────
@@ -429,19 +333,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'getMissingCount') {
-    getMissingWordsCount().then(count => sendResponse({ count }));
+    getMissingWordsCount(db).then(count => sendResponse({ count }));
     return true;
   }
 
   if (request.action === 'exportMissingWords') {
-    exportMissingWords()
+    exportMissingWords(db)
       .then(result => sendResponse({ success: true, ...result }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
 
   if (request.action === 'clearMissingWords') {
-    clearMissingWords()
+    clearMissingWords(db)
       .then(() => sendResponse({ success: true }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;

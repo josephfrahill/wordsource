@@ -158,7 +158,8 @@ for (let i = 1; i < lines.length; i++) {
       existing.source_word = relatedTerm;
       existing.rel_type = relType;
 
-      if (word === 'honesty')
+
+      if (word === 'recursively')
       {
         console.log('Word priority updated');
         console.log(relatedLang);
@@ -170,7 +171,11 @@ for (let i = 1; i < lines.length; i++) {
 
     if (priority === existingLangInfo.priority) {
 
-      if (priority == existingLangInfo.priority && relType === 'derived_from') {
+      if (existing.rel_type === 'derived_from') {
+        continue;
+      }
+
+      if (relType === 'derived_from') {
         existing.origin = capitalize(origin);
         existing.source_lang = relatedLang;
         existing.source_word = relatedTerm;
@@ -186,7 +191,7 @@ for (let i = 1; i < lines.length; i++) {
         existing.source_word = relatedTerm;
         existing.rel_type = relType;
 
-        if (word === 'honesty')
+        if (word === 'recursively')
         {
           console.log('Word partial updated');
           console.log(relatedLang);
@@ -203,12 +208,14 @@ for (let i = 1; i < lines.length; i++) {
         existing.source_word = existing.source_word + "," + relatedTerm;  // position?
         existing.rel_type = relType;
 
+        /*
         if (word === 'honesty')
         {
           console.log('Word partial 2 updated');
           console.log(relatedLang);
           console.log(existingLangInfo.priority);
         }
+          */
 
         continue;
       }
@@ -216,11 +223,13 @@ for (let i = 1; i < lines.length; i++) {
   }
   else {
 
+    /*
     if (word === 'honesty')
     {
       console.log('Word added');
       console.log(relatedLang);
     }
+      */
 
     let includeSourceLangData = true;
     if ((relType === 'inherited_from' || relType === 'has_prefix_with_root' || relType === 'has_affix')
@@ -230,7 +239,7 @@ for (let i = 1; i < lines.length; i++) {
 
     const entry = {
       word: word,
-      source_word: relatedTerm || '',
+      source_word: relatedTerm,
       source_url: `https://en.wiktionary.org/wiki/${encodeURIComponent(word)}`,
       rel_type: relType
     };

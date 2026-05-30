@@ -16,7 +16,7 @@ export const CONTRACTION_MAP = {
 
 // Irregular past tense -> base form
 
-const IRREGULAR_PAST_MAP = {
+export const IRREGULAR_PAST_MAP = {
   "arose": "arise",
   "ate": "eat",
   "awoke": "awake",
@@ -25,6 +25,7 @@ const IRREGULAR_PAST_MAP = {
   "bore": "bear",
   "beat": "beat",
   "became": "become",
+  "befell": "befall",
   "began": "begin",
   "bent": "bend",
   "bet": "bet",
@@ -96,6 +97,7 @@ const IRREGULAR_PAST_MAP = {
   "said": "say",
   "saw": "see",
   "sold": "sell",
+  "sought": "seek",
   "sent": "send",
   "set": "set",
   "shook": "shake",
@@ -133,7 +135,7 @@ const IRREGULAR_PAST_MAP = {
 };
 
 // Irregular past participle -> base form
-const IRREGULAR_PARTICIPLE_MAP = {
+export const IRREGULAR_PARTICIPLE_MAP = {
   "arisen": "arise",
   "awoken": "awake",
   "been": "be",

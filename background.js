@@ -1,7 +1,7 @@
 import {trackMissingWord, getMissingWordsCount, exportMissingWords, clearMissingWords}
  from './missingWords.js';
 import {capitalize, removeDiacritics, normaliseApostrophes} from './utils.js';
-import {CONTRACTION_MAP} from './constants/constants.js'
+import {CONTRACTION_MAP, IRREGULAR_PAST_MAP, IRREGULAR_PARTICIPLE_MAP} from './constants/constants.js'
 
 let db;
 
@@ -94,11 +94,19 @@ async function seedDatabase() {
 /**
  * Promisify IndexedDB get operation
  */
-function dbGet(store, key) {
-  return new Promise((resolve) => {
-    const req = store.get(key);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => resolve(null);
+function dbGet(key) {
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction('words', 'readonly');
+      const store = tx.objectStore('words');
+      const req = store.get(key);
+      req.onsuccess = (e) => resolve(e.target.result || null);
+      req.onerror = (e) => resolve(null);
+      tx.onerror = (e) => resolve(null);
+    } catch (e) {
+      console.error('dbGet error:', e);
+      resolve(null);
+    }
   });
 }
 
@@ -107,11 +115,12 @@ function dbGet(store, key) {
 /**
  * Resolve contractions to their base word via CONTRACTION_MAP
  */
-async function resolveContraction(cleanWord, store) {
-  if (!cleanWord.includes("'")) return null;
+async function resolveContraction(cleanWord) {
+  if (!cleanWord.includes("'"))
+     return null;
   
   const baseWord = CONTRACTION_MAP[cleanWord] || cleanWord.split("'")[0];
-  const result = await dbGet(store, baseWord);
+  const result = await dbGet(baseWord);
   
   if (result) {
     return { ...result, word: cleanWord, base_form: baseWord };
@@ -119,11 +128,24 @@ async function resolveContraction(cleanWord, store) {
   return null;
 }
 
+async function handleConstantWord(cleanWord) {
+  const constantWord = IRREGULAR_PAST_MAP[cleanWord] || IRREGULAR_PARTICIPLE_MAP[cleanWord] || '';
+
+  if (constantWord !== '') {
+    const result = await dbGet(constantWord);
+  
+    if (result) {
+      return { ...result, word: cleanWord, base_form: constantWord };
+    }
+  }
+
+  return null;
+}
 /**
  * Try word in various base forms (plurals, tenses, etc.)
  * Returns the first match found, or null
  */
-async function tryBaseForm(cleanWord, store, originalWord) {
+async function tryBaseForm(cleanWord, originalWord) {
   const attempts = [];
 
   // Possessive 's
@@ -195,7 +217,7 @@ async function tryBaseForm(cleanWord, store, originalWord) {
 
   // Try each attempt in order
   for (const baseForm of attempts) {
-    let result = await dbGet(store, baseForm);
+    let result = await dbGet(baseForm);
     if (result) {
       return { ...result, word: originalWord, base_form: baseForm };
     }
@@ -281,17 +303,25 @@ async function lookupWord(word) {
     : strippedWord;
 
   // Get a read-only transaction
+  /*
   const tx = db.transaction('words', 'readonly');
   const store = tx.objectStore('words');
+  */
 
   // Strategy 1: Try contraction resolution first
   if (cleanWord.includes("'")) {
-    const result = await resolveContraction(cleanWord, store);
-    if (result) return result;
+    const result = await resolveContraction(cleanWord);
+    if (result)
+      return result;
   }
 
+  const constantWordResult = await handleConstantWord(cleanWord);
+
+  if (constantWordResult)
+    return constantWordResult;
+
   // Strategy 2: Exact match
-  let result = await dbGet(store, cleanWord);
+  let result = await dbGet(cleanWord);
   if (result) {
     // If no source_lang but has source_word, follow the chain
     result = await resolveSourceChain(result, word);
@@ -311,7 +341,7 @@ async function lookupWord(word) {
   */
 
   // Strategy 4: Try base forms (plurals, tenses, etc.)
-  result = await tryBaseForm(cleanWord, store, word);
+  result = await tryBaseForm(cleanWord, word);
   if (result) {
     result = await resolveSourceChain(result, word);
     return result;

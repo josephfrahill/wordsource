@@ -60,7 +60,8 @@ async function handleManualLookup() {
 // -----------------------------
 function lookupAndShow(word, x, y) {
   safeSendMessage({ action: 'lookup', word }, (response) => {
-    if (!response) return;
+    if (!response)
+       return;
     showTooltip(response, x, y);
   });
 }
@@ -220,6 +221,15 @@ function isSingleWord(text) {
 // -----------------------------
 // 🎨 TOOLTIP RENDERING
 // -----------------------------
+const colors = {
+    Germanic: '#4A90E2',
+    Latinate: '#9B59B6',
+    Greek: '#4AE290',
+    Arabic: '#E2C44A',
+    Other: '#E24A4A',
+    Unknown: '#666'
+  };
+
 function showTooltip(wordData, x, y) {
   removeTooltip();
 
@@ -229,7 +239,7 @@ function showTooltip(wordData, x, y) {
     position: absolute;
     left: ${x + 5}px;
     top: ${y + 10}px;
-    pointer-events: none;
+    pointer-events: auto;
   `;
 
   document.body.appendChild(tooltip);
@@ -269,15 +279,7 @@ function showTooltipFixed(wordData) {
 }
 
 function buildTooltip(wordData) {
-  const colors = {
-    Germanic: '#4A90E2',
-    Latinate: '#9B59B6',
-    Greek: '#4AE290',
-    Arabic: '#E2C44A',
-    Other: '#E24A4A',
-    Unknown: '#666'
-  };
-
+  
   const color = colors[wordData.origin] || colors.Other;
 
   const tooltip = document.createElement('div');
@@ -286,20 +288,28 @@ function buildTooltip(wordData) {
   let html = `<strong>${wordData.word}</strong>`;
 
   if (wordData.base_form && wordData.base_form !== wordData.word) {
-    html += ` (← ${wordData.base_form})`;
+    html += ` (→ ${wordData.base_form})`;
   }
 
   html += `: ${wordData.origin}`;
 
   if (wordData.source_lang) {
-    html += `<br><small>from ${wordData.source_lang}`;
-    if (wordData.source_word) {
-      html += ` <a href=${`https://en.wiktionary.org/wiki/${encodeURIComponent(wordData.source_word)}`}>${wordData.source_word}</a>`;
-    }
-    html += `</small>`;
-  }
+  html += `<br><small>from ${wordData.source_lang} `;
+  html += `<a href="${wordData.source_url}" target="_blank" rel="noopener noreferrer">${wordData.source_word}</a>`;
+  html += `</small>`;
+}
 
   tooltip.innerHTML = html;
+
+  tooltip.querySelectorAll('a').forEach(a => {
+  a.style.cssText = `
+    color: rgba(255, 255, 255, 0.75);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  `;
+  a.addEventListener('mouseenter', () => a.style.color = 'white');
+  a.addEventListener('mouseleave', () => a.style.color = 'rgba(255, 255, 255, 0.75)');
+});
 
   tooltip.style.cssText = `
     background: ${color};
@@ -377,14 +387,6 @@ function showBreakdownTooltipFixed(breakdown) {
 }
 
 function buildBreakdownTooltip(breakdown) {
-  const colors = {
-    Germanic: '#4A90E2',
-    Latinate: '#9B59B6',
-    Greek: '#4AE290',
-    Arabic: '#E2C44A',
-    Other: '#E24A4A',
-    Unknown: '#666'
-  };
 
   const tooltip = document.createElement('div');
   tooltip.id = 'etymology-tooltip';

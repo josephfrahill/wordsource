@@ -175,6 +175,7 @@ async function tryBaseForm(cleanWord, originalWord) {
   // Present participle -ing
   if (cleanWord.endsWith('ing')) {
     attempts.push(cleanWord.slice(0, -3));
+    attempts.push(cleanWord.slice(0, -3) + 'e');
     if (cleanWord.length > 4) {
       const lastTwo = cleanWord.slice(-5, -3);
       if (lastTwo[0] === lastTwo[1]) attempts.push(cleanWord.slice(0, -4));

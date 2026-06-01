@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "WordSource",
   "version": "1.0",
-  "description": "View the linguistic source of highlighted words; Germanic, Latinate, Greek etc.",
+  "description": "View the etymological source of highlighted words; Germanic, Latinate, Greek etc.",
   "permissions": ["clipboardRead", "downloads"],
   "action": { "default_popup": "html/popup.html" },
   "background": {

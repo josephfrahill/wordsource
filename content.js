@@ -203,7 +203,6 @@ function getSelectionText() {
   }
 }
 
-// can be moved inside 
 async function getClipboardText() {
   try {
     document.execCommand('copy');

@@ -89,6 +89,24 @@ async function seedDatabase() {
   }
 }
 
+// ─── DB Readiness ─────────────────────────────────────────────────────────────
+
+function waitForDB(timeout = 5000, interval = 50) {
+  return new Promise((resolve, reject) => {
+    if (db) return resolve(db);
+    const start = Date.now();
+    const poll = setInterval(() => {
+      if (db) {
+        clearInterval(poll);
+        resolve(db);
+      } else if (Date.now() - start > timeout) {
+        clearInterval(poll);
+        reject(new Error('DB init timed out'));
+      }
+    }, interval);
+  });
+}
+
 // ─── IndexedDB Helpers ────────────────────────────────────────────────────────
 
 /**
@@ -280,9 +298,18 @@ async function resolveSourceChain(result, originalWord, depth = 0) {
  * Returns { word, origin, source_lang, source_word, ... } or { word, error: true }
  */
 async function lookupWord(word) {
+
+  // Wait for DB instead of failing immediately
+  try {
+    await waitForDB();
+  } catch {
+    return { word, origin: 'Database loading...', error: true };
+  }
+/*
   if (!db) {
     return { word, origin: 'Database loading...', error: true };
   }
+    */
 
   // Normalize input
   const rawWord = normaliseApostrophes(word.toLowerCase().trim());

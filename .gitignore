@@ -1,4 +1,7 @@
 api/mw-api.js
 
 data/etymology.csv
-data/words_relations.csv
+data/words-relations.csv
+data/words-fetched.json
+missingWords.js
+thumbs/demo.mp4

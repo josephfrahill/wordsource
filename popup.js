@@ -1,27 +1,38 @@
-const missingCountEl = document.getElementById('missing-count');
-const exportBtn      = document.getElementById('export-btn');
-const clearBtn       = document.getElementById('clear-btn');
-const statusMsg      = document.getElementById('status-msg');
+import { DEBUG } from "./constants/constants.js";
 
-function showStatus(message, type = 'success') {
+const missingWordsDiv = document.getElementById("missing-words-div");
+const missingCountEl = document.getElementById("missing-count");
+const exportBtn = document.getElementById("export-btn");
+const clearBtn = document.getElementById("clear-btn");
+const statusMsg = document.getElementById("status-msg");
+
+// Missing-word tracking only happens when DEBUG is true (see background.js),
+// so only show this panel in that same mode.
+if (!DEBUG) {
+  missingWordsDiv.className = "hidden";
+}
+
+function showStatus(message, type = "success") {
   statusMsg.textContent = message;
   statusMsg.className = `status ${type}`;
-  setTimeout(() => { statusMsg.className = 'status hidden'; }, 3000);
+  setTimeout(() => {
+    statusMsg.className = "status hidden";
+  }, 3000);
 }
 
 function refreshCount() {
-  chrome.runtime.sendMessage({ action: 'getMissingCount' }, (res) => {
-    missingCountEl.textContent = res?.count ?? '—';
+  chrome.runtime.sendMessage({ action: "getMissingCount" }, (res) => {
+    missingCountEl.textContent = res?.count ?? "—";
     exportBtn.disabled = !res?.count;
-    clearBtn.disabled  = !res?.count;
+    clearBtn.disabled = !res?.count;
   });
 }
 
-exportBtn.addEventListener('click', () => {
+exportBtn.addEventListener("click", () => {
   exportBtn.disabled = true;
-  exportBtn.textContent = 'Exporting…';
+  exportBtn.textContent = "Exporting…";
 
-  chrome.runtime.sendMessage({ action: 'exportMissingWords' }, (res) => {
+  chrome.runtime.sendMessage({ action: "exportMissingWords" }, (res) => {
     exportBtn.disabled = false;
     exportBtn.innerHTML = `
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -30,22 +41,22 @@ exportBtn.addEventListener('click', () => {
       Export missing words`;
 
     if (res?.success) {
-      showStatus(`Exported ${res.count} words`, 'success');
+      showStatus(`Exported ${res.count} words`, "success");
     } else {
-      showStatus(res?.error || 'Export failed', 'error');
+      showStatus(res?.error || "Export failed", "error");
     }
   });
 });
 
-clearBtn.addEventListener('click', () => {
-  if (!confirm('Clear all tracked missing words?')) return;
+clearBtn.addEventListener("click", () => {
+  if (!confirm("Clear all tracked missing words?")) return;
 
-  chrome.runtime.sendMessage({ action: 'clearMissingWords' }, (res) => {
+  chrome.runtime.sendMessage({ action: "clearMissingWords" }, (res) => {
     if (res?.success) {
-      showStatus('Cleared', 'success');
+      showStatus("Cleared", "success");
       refreshCount();
     } else {
-      showStatus(res?.error || 'Clear failed', 'error');
+      showStatus(res?.error || "Clear failed", "error");
     }
   });
 });

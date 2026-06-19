@@ -1,5 +1,8 @@
 const fs = require("fs");
 
+// Multiple etymological relationships may exist for a word.
+// Higher-priority source languages (e.g. Latin over French)
+// replace lower-priority matches.
 const langToOrigin = {
   // Germanic
   "Old English": { origin: "germanic", priority: 10 },
@@ -60,7 +63,6 @@ let skippedReasons = {
   noRelatedLang: 0,
   noRelatedTerm: 0,
   emptyWord: 0,
-  tooShort: 0,
   // isAffix: 0,
   multipleApostrophes: 0,
   hasSuffix: 0,
@@ -77,7 +79,7 @@ for (let i = 1; i < lines.length; i++) {
     continue;
   }
 
-  var [
+  let [
     termId,
     lang,
     term,
@@ -121,11 +123,8 @@ for (let i = 1; i < lines.length; i++) {
     continue;
   }
 
-  let hasMultipleRelatedTerms = false;
   if (relatedTerm.startsWith('"')) {
-    hasMultipleRelatedTerms = true;
-    let termParts = relatedTerm.split('"');
-    relatedTerm = termParts[1];
+    relatedTerm = relatedTerm.split('"')[1];
   }
 
   const word = term.toLowerCase().trim();
@@ -144,7 +143,7 @@ for (let i = 1; i < lines.length; i++) {
     skippedReasons.isAffix++;
     continue;
   }
-    */
+  */
 
   // Skip words with multiple apostrophes (corrupted data)
   if (tooManyApostrophes.test(word)) {
@@ -168,19 +167,14 @@ for (let i = 1; i < lines.length; i++) {
     };
 
     if (
-      (relType !== "has_prefix_with_root" || relType !== "has_affix") &&
+      relType !== "has_prefix_with_root" &&
+      relType !== "has_affix" &&
       priority > existingLangInfo.priority
     ) {
       existing.origin = capitalize(origin);
       existing.source_lang = relatedLang;
       existing.source_word = relatedTerm;
       existing.rel_type = relType;
-
-      if (word === "recursively") {
-        console.log("Word priority updated");
-        console.log(relatedLang);
-        console.log(existingLangInfo.priority);
-      }
 
       continue;
     }
@@ -205,42 +199,19 @@ for (let i = 1; i < lines.length; i++) {
         existing.source_word = relatedTerm;
         existing.rel_type = relType;
 
-        if (word === "recursively") {
-          console.log("Word partial updated");
-          console.log(relatedLang);
-          console.log(existingLangInfo.priority);
-        }
-
         continue;
       }
 
       if (relType === "has_affix") {
         delete existing.origin;
         delete existing.source_lang;
-        existing.source_word = existing.source_word + "," + relatedTerm; // position?
+        existing.source_word = `${existing.source_word},${relatedTerm}`;
         existing.rel_type = relType;
-
-        /*
-        if (word === 'honesty')
-        {
-          console.log('Word partial 2 updated');
-          console.log(relatedLang);
-          console.log(existingLangInfo.priority);
-        }
-          */
 
         continue;
       }
     }
   } else {
-    /*
-    if (word === 'honesty')
-    {
-      console.log('Word added');
-      console.log(relatedLang);
-    }
-      */
-
     let includeSourceLangData = true;
     if (
       (relType === "inherited_from" ||
@@ -264,23 +235,13 @@ for (let i = 1; i < lines.length; i++) {
     }
 
     wordMap.set(word, entry);
-    /*
-    wordMap.set(word, {
-      word: word,
-      origin: includeSourceLangData ? capitalize(origin) : null,
-      source_lang: includeSourceLangData ? relatedLang : null,
-      source_word: relatedTerm,
-      source_url: `https://en.wiktionary.org/wiki/${encodeURIComponent(word)}`,
-      rel_type: relType
-    });
-    */
+
     processed++;
   }
 }
 
 const words = Array.from(wordMap.values());
 
-// Create output with metadata
 const output = {
   metadata: {
     totalWordCount: words.length,
@@ -288,7 +249,7 @@ const output = {
     source: "https://github.com/droher/etymology-db",
     generatedAt: new Date().toISOString(),
   },
-  words: words,
+  words,
 };
 
 fs.writeFileSync(

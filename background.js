@@ -14,7 +14,7 @@ import {
 
 let db;
 
-const DB_VERSION = 3; // bumped from 2 to add missing_words store
+const DB_VERSION = 1;
 
 const initDB = () => {
   const request = indexedDB.open("EtymologyDB", DB_VERSION);
@@ -22,21 +22,26 @@ const initDB = () => {
   request.onupgradeneeded = (e) => {
     const database = e.target.result;
     const oldVersion = e.oldVersion;
-    console.log(`Upgrading DB from version ${oldVersion} to ${DB_VERSION}`);
+
+    if (DEBUG) {
+      console.log(`Upgrading DB from version ${oldVersion} to ${DB_VERSION}`);
+    }
 
     if (!database.objectStoreNames.contains("words")) {
       const store = database.createObjectStore("words", { keyPath: "word" });
       store.createIndex("origin", "origin", { unique: false });
     }
 
-    // New in v3
     if (!database.objectStoreNames.contains("missing_words")) {
       const missingStore = database.createObjectStore("missing_words", {
         keyPath: "word",
       });
       missingStore.createIndex("count", "count", { unique: false });
       missingStore.createIndex("firstSeen", "firstSeen", { unique: false });
-      console.log("Created missing_words store");
+
+      if (DEBUG) {
+        console.log("Created missing_words store");
+      }
     }
   };
 

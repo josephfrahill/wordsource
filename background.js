@@ -282,52 +282,6 @@ async function tryBaseForm(cleanWord, originalWord) {
 }
 
 /**
- * Recursively resolve source words if no source_lang found
- * Follows chains like: nonrecursive → recursive → recursus
- * Limits to MAX_REDIRECT_DEPTH to avoid infinite chains
- */
-async function resolveSourceChain(result, originalWord, depth = 0) {
-  const MAX_REDIRECT_DEPTH = 4;
-
-  // Stop if: has source_lang, is an error, at depth limit, or no source_word
-  if (
-    result.error ||
-    result.source_lang ||
-    depth >= MAX_REDIRECT_DEPTH ||
-    !result.source_word
-  ) {
-    return result;
-  }
-
-  if (DEBUG) {
-    console.log(
-      `Redirecting "${result.word}" → "${result.source_word}" (depth ${depth + 1})`,
-    );
-  }
-
-  // Look up the source word
-  const sourceResult = await lookupWord(result.source_word);
-
-  // If lookup failed, return original result
-  if (sourceResult.error) {
-    return result;
-  }
-
-  // If we found origin info, return it (keeping the original word)
-  if (sourceResult.source_lang) {
-    return { ...sourceResult, word: originalWord };
-  }
-
-  // No origin yet — recurse further if the source word also has a source_word
-  if (sourceResult.source_word) {
-    return resolveSourceChain(sourceResult, originalWord, depth + 1);
-  }
-
-  // Dead end — return what we have
-  return result;
-}
-
-/**
  * Main word lookup function
  * Returns { word, origin, source_lang, source_word, ... } or { word, error: true }
  */
@@ -364,16 +318,12 @@ async function lookupWord(word) {
 
   // Strategy 2: Exact match
   let result = await dbGet(cleanWord);
-  if (result) {
-    // If no source_lang but has source_word, follow the chain
-    result = await resolveSourceChain(result, word);
-    return result;
-  }
+  if (result) return result;
 
   // Strategy 3: Try base forms (plurals, tenses, etc.)
   result = await tryBaseForm(cleanWord, word);
   if (result) {
-    result = await resolveSourceChain(result, word);
+    //result = await resolveSourceChain(result, word);
     return result;
   }
 
@@ -416,9 +366,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 chrome.commands.onCommand.addListener((command) => {
-  if (command === "lookup-word") {
+  if (command === "keyboardLookup") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "lookupSelection" });
+      if (!tabs?.[0]?.id) return;
+      chrome.tabs.sendMessage(tabs[0].id, { action: "keyboardLookup" });
     });
   }
 });

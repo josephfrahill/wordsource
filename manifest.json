@@ -10,7 +10,7 @@
     "type": "module"
   },
   "commands": {
-    "lookup-word": {
+    "keyboardLookup": {
       "suggested_key": {
         "default": "Ctrl+Q"
       },

@@ -8,10 +8,29 @@ function init() {
 // ⌨️ KEYBOARD LOOKUP (works everywhere)
 // -----------------------------
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.action === "lookupSelection") {
-    handleManualLookup();
+  if (msg.action === "keyboardLookup") {
+    handleKeyboardLookup();
   }
 });
+
+async function handleKeyboardLookup() {
+  await new Promise((r) => setTimeout(r, 50));
+
+  const text = await getClipboardText();
+  if (!text) {
+    return;
+  }
+
+  if (isSingleWord(text)) {
+    if (text.includes("-")) {
+      lookupAndShowBreakdown(text);
+    } else {
+      lookupAndShowWithFeedback(text, { mode: "fixed" });
+    }
+  } else {
+    lookupAndShowBreakdown(text);
+  }
+}
 
 // -----------------------------
 // 🖱 AUTO LOOKUP (non-GDocs)
@@ -34,22 +53,6 @@ function handleMouseUp(e) {
   }
 }
 
-async function handleManualLookup() {
-  await new Promise((r) => setTimeout(r, 50));
-
-  let text = await getClipboardText();
-  if (!text) return;
-
-  if (isSingleWord(text)) {
-    if (text.includes("-")) {
-      lookupAndShowBreakdown(text);
-    } else {
-      lookupAndShowWithFeedback(text, { mode: "fixed" });
-    }
-  } else {
-    lookupAndShowBreakdown(text);
-  }
-}
 // -----------------------------
 // 🔍 CORE LOGIC - Single Word
 // -----------------------------

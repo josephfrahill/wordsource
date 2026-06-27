@@ -88,7 +88,7 @@ async function seedDatabase() {
     );
     const data = await response.json();
 
-    const words = data.words || data;
+    let words = data.words || data;
     const metadata = data.metadata || {};
 
     if (DEBUG) {
@@ -97,6 +97,13 @@ async function seedDatabase() {
         console.log(`Data generated: ${metadata.generatedAt}`);
       }
     }
+
+    const responseFetchedWords = await fetch(
+      chrome.runtime.getURL("data/words-fetched.json"),
+    );
+    const fetchedWordsData = await responseFetchedWords.json();
+
+    words = [...words, ...fetchedWordsData];
 
     return new Promise((resolve, reject) => {
       const tx = db.transaction("words", "readwrite");
